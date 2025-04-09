@@ -1,43 +1,54 @@
 import pandas as pd
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 from llmInvocation import main
 
 
-def parallel_process_dfs(
-    dfs_dict: Dict[str, pd.DataFrame],
+def parallel_process_df(
+    df: pd.DataFrame,
+    n_splits: Optional[int] = None,
     max_workers: int = 4,
     **kwargs: Any
-) -> Dict[str, Optional[pd.DataFrame]]:
+) -> pd.DataFrame:
     """
-    Processes multiple pandas DataFrames concurrently using the main.main function.
+    Processes a concatenated pandas DataFrame concurrently by splitting it into chunks and
+    applying the main.main function to each chunk.
 
     Parameters:
-        dfs_dict (Dict[str, pd.DataFrame]): A dictionary where keys are unique identifiers
-            (e.g., table names) and values are the corresponding pandas DataFrames.
-        max_workers (int, optional): The maximum number of parallel workers. Defaults to 4.
+        df (pd.DataFrame): The concatenated input DataFrame to process.
+        n_splits (Optional[int]): The number of chunks to split the DataFrame into.
+            If not provided, it defaults to max_workers.
+        max_workers (int): The maximum number of parallel workers. Defaults to 4.
         **kwargs: Additional keyword arguments to pass to main.main (e.g., api_key, temperature,
             azure_endpoint, api_version, text_column, spark, llm_model).
 
     Returns:
-        Dict[str, Optional[pd.DataFrame]]: A dictionary mapping each key from `dfs_dict` to its
-            resulting DataFrame. If an error occurs for a particular DataFrame, the corresponding
-            value is set to None.
+        pd.DataFrame: The concatenated result DataFrame obtained by combining the outputs
+            from processing each chunk.
     """
-    results: Dict[str, Optional[pd.DataFrame]] = {}
+    if n_splits is None:
+        n_splits = max_workers
+
+    # Split the DataFrame into equal chunks.
+    chunks = np.array_split(df, n_splits)
+    results = [None] * n_splits
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_key = {
-            executor.submit(main.main, df=df, **kwargs): key
-            for key, df in dfs_dict.items()
+        # Submit each chunk for concurrent processing.
+        future_to_index = {
+            executor.submit(main.main, df=chunk, **kwargs): index
+            for index, chunk in enumerate(chunks)
         }
 
-        for future in as_completed(future_to_key):
-            key = future_to_key[future]
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
             try:
-                results[key] = future.result()
+                results[index] = future.result()
             except Exception as error:
-                print(f"Error processing DataFrame for key '{key}': {error}")
-                results[key] = None
+                print(f"Error processing chunk {index}: {error}")
+                results[index] = pd.DataFrame()  # Use empty DataFrame on error
 
-    return results
+    # Concatenate all processed chunks into a single DataFrame.
+    final_df = pd.concat(results, ignore_index=True)
+    return final_df
