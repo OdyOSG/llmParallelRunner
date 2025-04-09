@@ -7,12 +7,12 @@ setup(
     install_requires=[
         "pandas",
         "numpy",
-        # Add additional dependencies as required (e.g., if 'llmInvocation' is available on PyPI).
+        # Add additional dependencies here if required.
     ],
     author="Your Name",
     author_email="your.email@example.com",
     description="A package for processing a concatenated pandas DataFrame concurrently using an LLM service.",
-    url="https://github.com/yourusername/parallel_runner",  # Replace with your actual GitHub repository URL.
+    url="https://github.com/yourusername/parallel_runner",  # Replace with your actual GitHub URL.
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
