@@ -1,19 +1,14 @@
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 from typing import Any, Optional
 from llm_invocation import main
 
-# Create a lock to serialize Delta table writes
-delta_write_lock = threading.Lock()
+# The delta_write_lock and its usage have been removed since we're now allowing parallel writes.
 
 def safe_main_main(*args, **kwargs) -> pd.DataFrame:
-    """
-    Wraps main.main such that Delta table operations are executed serially.
-    """
-    with delta_write_lock:
-        return main.main(*args, **kwargs)
+    # Directly call main.main without acquiring any lock.
+    return main.main(*args, **kwargs)
 
 def parallel_process_df(
     df: pd.DataFrame,
@@ -23,10 +18,8 @@ def parallel_process_df(
 ) -> pd.DataFrame:
     """
     Processes a DataFrame concurrently by splitting it into chunks,
-    processing each chunk in parallel using safe_main_main (which wraps
-    main.main with a lock to avoid concurrent Delta table writes), and
-    then concatenates the result.
-
+    processing each chunk in parallel using safe_main_main, and then concatenates the result.
+    
     Parameters:
         df (pd.DataFrame): Input DataFrame to process.
         n_splits (Optional[int]): Number of chunks to split into. Defaults to max_workers.
